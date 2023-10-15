@@ -1,0 +1,31 @@
+name: Deploy to Digital Ocean Droplet
+
+on:
+  workflow_run:
+    workflows: ["Build and Push Docker Image"]
+    types:
+      - completed
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Add SSH key to known hosts
+        run: |
+          mkdir ~/.ssh && echo "${{ secrets.DROPLET_SSH_KNOWN_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Setup SSH
+        run: |
+          echo "${{ secrets.DROPLET_SSH_PRIVATE_KEY }}" > private_key.pem
+          chmod 600 private_key.pem
+
+      - name: Deploy to Droplet
+        run: |
+          scp -i private_key.pem docker-compose.yaml nikita@${{ secrets.DROPLET_IP }}:/home/nikita/pycon-sweden-bot/
+          ssh -i private_key.pem nikita@${{ secrets.DROPLET_IP }} "cd /home/nikita/pycon-sweden-bot && docker-compose pull && docker-compose up -d"
+        env:
+          DROPLET_SSH_PRIVATE_KEY: ${{ secrets.DROPLET_SSH_PRIVATE_KEY }}

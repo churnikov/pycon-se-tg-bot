@@ -1,0 +1,32 @@
+version: '3.7'
+
+services:
+  bot:
+    image: ghcr.io/churnikov/pycon-se-tg-bot:latest
+    # image: pycon_se_bot
+    command: python -u pycon_se_bot/main.py
+    environment:
+      - POSTGRES_HOST=db
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - REDIS_HOST=redis
+      - TG_BOT_TOKEN=${TG_BOT_TOKEN}
+    depends_on:
+      - db
+      - redis
+
+  db:
+    image: postgres:latest
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:latest
+
+volumes:
+  postgres_data:
