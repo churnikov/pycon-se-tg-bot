@@ -276,6 +276,7 @@ async def setup() -> None:
                 time_end=date.format(time=talk_data["time_end"]),
                 link=talk_data["link"],
                 room=room,
+                day=talk_data["day"],
             )
 
 

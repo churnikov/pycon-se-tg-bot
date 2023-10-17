@@ -22,6 +22,7 @@ class Talk(Model):  # type: ignore
     link = fields.CharField(max_length=255, null=True)
     room = fields.ForeignKeyField("models.Room", related_name="talks", null=True)
     speaker = fields.CharField(max_length=255, null=True)
+    day = fields.IntField(null=False)
 
 
 class LikedTalk(Model):  # type: ignore
