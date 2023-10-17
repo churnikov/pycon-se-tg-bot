@@ -4,6 +4,12 @@ from tortoise import Tortoise
 from tortoise.transactions import in_transaction
 
 from pycon_se_bot.models import Room, Talk
+from pycon_se_bot.settings import (
+    POSTGRES_DB,
+    POSTGRES_HOST,
+    POSTGRES_PASSWORD,
+    POSTGRES_USER,
+)
 
 talks_data = [
     {
@@ -246,7 +252,10 @@ talks_data = [
 
 async def setup() -> None:
     # Connect to the database
-    await Tortoise.init(db_url="postgres://nikita:@localhost/postgres", modules={"models": ["__main__"]})
+    await Tortoise.init(
+        db_url=f"postgres://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:5432/{POSTGRES_DB}",
+        modules={"models": ["__main__"]},
+    )
     # Create the database schema
     await Tortoise.generate_schemas()
 

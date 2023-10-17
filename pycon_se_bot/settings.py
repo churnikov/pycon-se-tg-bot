@@ -1,6 +1,7 @@
 import os
 
 from aiogram import Dispatcher
+from aiogram.fsm.storage.redis import RedisStorage
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -13,4 +14,6 @@ POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD")
 REDIS_HOST = os.getenv("REDIS_HOST")
 GF_SECURITY_ADMIN_USER = os.getenv("GF_SECURITY_ADMIN_USER")
 GF_SECURITY_ADMIN_PASSWORD = os.getenv("GF_SECURITY_ADMIN_PASSWORD")
-dp = Dispatcher()
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
+storage = RedisStorage.from_url(REDIS_HOST)
+dp = Dispatcher(storage=storage)
