@@ -3,29 +3,27 @@ from datetime import datetime, timedelta
 
 from aiogram import F, types
 from aiogram.filters import CommandStart
+from aiogram.filters.callback_data import CallbackData
 from aiogram.filters.command import Command, CommandObject
-from aiogram.types.keyboard_button import KeyboardButton
-from aiogram.types.reply_keyboard_markup import ReplyKeyboardMarkup
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types.inline_keyboard_markup import InlineKeyboardMarkup
 from aiogram.types.inline_keyboard_button import InlineKeyboardButton
-from aiogram.filters.callback_data import CallbackData
+from aiogram.types.inline_keyboard_markup import InlineKeyboardMarkup
+from aiogram.types.keyboard_button import KeyboardButton
+from aiogram.types.reply_keyboard_markup import ReplyKeyboardMarkup
 
-from pycon_se_bot.models import Talk, User, LikedTalk
+from pycon_se_bot.models import Fika, LikedTalk, Talk, User
 from pycon_se_bot.settings import ADMIN_PASSWORD, dp
 
-
 DEFAULT_KEYBOAD = ReplyKeyboardMarkup(
-        keyboard=[
-            [
-                KeyboardButton(text="Schedule"),
-                ],
-            [
-                KeyboardButton(text="Random fika (coffee)")
-                ],
-            ],
-        is_persistent=True)
+    keyboard=[
+        [
+            KeyboardButton(text="Schedule"),
+        ],
+        [KeyboardButton(text="Random fika (coffee)")],
+    ],
+    is_persistent=True,
+)
 
 
 # States
@@ -44,6 +42,9 @@ class SchleduleCallback(CallbackData, prefix="talk"):
 @dp.message(CommandStart())  # type: ignore
 async def start(message: types.Message) -> None:
     # Sending a message with the keyboard
+    await message.answer(
+        "Hello! By using this bot you agree to our code of conduct " "https://www.europython-society.org/coc/"
+    )
     await message.answer("Hello! I'm your bot, choose an option:", reply_markup=DEFAULT_KEYBOAD)
     await User.get_or_create(id=message.from_user.id, name=message.from_user.full_name)
 
@@ -60,12 +61,13 @@ async def handle_schedule_lookup(message: types.Message, state: FSMContext) -> N
             [
                 KeyboardButton(text="Day 1"),
                 KeyboardButton(text="Day 2"),
-                ],
+            ],
             [
                 KeyboardButton(text="Home"),
-                ],
             ],
-        is_persistent=True)
+        ],
+        is_persistent=True,
+    )
     await message.answer("Which day's schedule would you like to see?", reply_markup=keyboard)
 
 
@@ -77,9 +79,10 @@ async def handle_schedule_now(message: types.Message) -> None:
     previous_thirty_minutes = current_time - timedelta(minutes=30)
     print(previous_thirty_minutes, next_detltha)
     talks = await (
-            Talk.filter(time_start__gte=previous_thirty_minutes, time_end__lte=next_detltha).all()
-            .prefetch_related('room')
-            .order_by('time_start')
+        Talk.filter(time_start__gte=previous_thirty_minutes, time_end__lte=next_detltha)
+        .all()
+        .prefetch_related("room")
+        .order_by("time_start")
     )
     print(talks)
     talks = split_talks_by_room(talks)
@@ -93,11 +96,7 @@ async def handle_schedule_now(message: types.Message) -> None:
 
 
 async def get_talks(day: int) -> list[Talk]:
-    talks = await (
-            Talk.filter(day=day).all()
-            .prefetch_related('room')
-            .order_by('time_start')
-    )
+    talks = await (Talk.filter(day=day).all().prefetch_related("room").order_by("time_start"))
     print(talks[0].time_start)
     return talks
 
@@ -107,7 +106,7 @@ def split_talks_by_room(talks: list[Talk]) -> dict[str, dict[str, Talk]]:
     for talk in talks:
         time_key = f"{talk.time_start.strftime('%H:%M')} - {talk.time_end.strftime('%H:%M')}"
         if time_key not in table_data:
-            table_data[time_key] = { 'Main Room': None, 'Second Room': None }
+            table_data[time_key] = {"Main Room": None, "Second Room": None}
         room_name = talk.room.name if talk.room else None
         table_data[time_key][room_name] = talk
     return table_data
@@ -117,27 +116,32 @@ async def generate_keyboard_for_day(day: int) -> ReplyKeyboardMarkup:
     talks = await get_talks(day)
     talks = split_talks_by_room(talks)
     schedule_kbrd = [
-            [
-                KeyboardButton(text="Main Room"),
-                KeyboardButton(text="Second Room"),
-                ],
-            ]
+        [
+            KeyboardButton(text="Main Room"),
+            KeyboardButton(text="Second Room"),
+        ],
+    ]
     for rooms in talks.values():
         row = []
         for room_name, talk in rooms.items():
             if talk:
-                row.append(KeyboardButton(text=f"{talk.name} ({talk.time_start.strftime('%H:%M')} - {talk.time_end.strftime('%H:%M')})"))
+                row.append(
+                    KeyboardButton(
+                        text=f"{talk.name} ({talk.time_start.strftime('%H:%M')} - {talk.time_end.strftime('%H:%M')})"
+                    )
+                )
         schedule_kbrd.append(row)
     keyboard = ReplyKeyboardMarkup(
         keyboard=[
-            [ KeyboardButton(text="< Schedule") ],
-            *schedule_kbrd,                ],
-        is_persistent=True
-        )
+            [KeyboardButton(text="< Schedule")],
+            *schedule_kbrd,
+        ],
+        is_persistent=True,
+    )
     return keyboard
 
 
-@dp.message(F.text.regexp("Day \d+"))  # type: ignore
+@dp.message(F.text.regexp(r"Day \d+"))  # type: ignore
 async def handle_schedule_for_day(message: types.Message, state: FSMContext) -> None:
     day = message.text.split(" ")
     if len(day) != 2:
@@ -175,7 +179,7 @@ async def handle_schedule_back(message: types.Message, state: FSMContext) -> Non
 async def handle_schedule_talk(message: types.Message, state: FSMContext) -> None:
     logging.info("Handling talk %r", message.text)
     talk = message.text.split(" (")[0]
-    talk = await Talk.filter(name=talk).prefetch_related('room').first()
+    talk = await Talk.filter(name=talk).prefetch_related("room").first()
     if talk is None:
         await message.answer("Talk not found")
         return
@@ -187,14 +191,21 @@ async def handle_schedule_talk(message: types.Message, state: FSMContext) -> Non
             await message.answer(f"Room: {talk.room.name}")
         if talk.speaker:
             await message.answer(f"Speaker: {talk.speaker}")
-        await message.answer("Would you like to save this talk?", reply_markup=InlineKeyboardMarkup(
-            inline_keyboard=[
-                [
-                    InlineKeyboardButton(text="Yes", callback_data=SchleduleCallback(talk_id=talk.id, liked=True).pack()),
-                    InlineKeyboardButton(text="No", callback_data=SchleduleCallback(talk_id=talk.id, liked=False).pack()),
+        await message.answer(
+            "Would you like to save this talk?",
+            reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [
+                        InlineKeyboardButton(
+                            text="Yes", callback_data=SchleduleCallback(talk_id=talk.id, liked=True).pack()
+                        ),
+                        InlineKeyboardButton(
+                            text="No", callback_data=SchleduleCallback(talk_id=talk.id, liked=False).pack()
+                        ),
                     ],
                 ]
-            ))
+            ),
+        )
 
 
 @dp.callback_query(SchleduleCallback.filter())  # type: ignore
@@ -210,13 +221,14 @@ async def handle_schedule_talk_callback(callback_query: types.CallbackQuery, cal
         await LikedTalk.filter(talk=talk, user=user).delete()
         await callback_query.answer("Talk removed")
 
+
 @dp.message(Command("liked"))  # type: ignore
 async def handle_liked_talks(message: types.Message) -> None:
     user = await User.get(id=message.from_user.id)
     liked_talks = await user.liked_talks.all()
     talks = []
     for liked_talk in liked_talks:
-        talks.append(await Talk.get(id=liked_talk.talk_id).prefetch_related('room'))
+        talks.append(await Talk.get(id=liked_talk.talk_id).prefetch_related("room"))
     if not talks:
         await message.answer("You have no liked talks")
         return
@@ -226,6 +238,57 @@ async def handle_liked_talks(message: types.Message) -> None:
         for room_name, talk in rooms.items():
             if talk:
                 await message.answer(f"{room_name}: {talk.name}")
+
+
+@dp.message(F.text == "Random fika (coffee)")  # type: ignore
+async def handle_random_fika(message: types.Message, state: FSMContext) -> None:
+    await state.set_state(Form.fandom_fika)
+    await message.answer("Do you want to participate in random fika?")
+    await message.answer("You will be matched with a random person from the conference")
+    await message.answer(
+        "You deside how you want to do it, but we recommend having a cinamon bun and a cup of coffee "
+        "or a glass of beer after the conference. We just want to help you make approching people easier and "
+        "have a good time.",
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(text="Yes", callback_data="fika_yes"),
+                    InlineKeyboardButton(text="No", callback_data="fika_no"),
+                ],
+            ]
+        ),
+    )
+
+
+@dp.callback_query(F.text == "fika_yes")  # type: ignore
+async def handle_random_fika_yes(callback_query: types.CallbackQuery) -> None:
+    # TODO: May be times should be configurable
+    await callback_query.answer(
+        "You have been added to the list of people who want to participate in random fika. "
+        "At 11:00 we will send you a message with the name of the person you will have fika with"
+    )
+    user = await User.get(id=callback_query.from_user.id).prefetch_related("fikas")
+    if user.fikas:
+        await callback_query.answer("You have already signed up for random fika")
+        return
+    await Fika.create(user=user)
+    await callback_query.answer("You have been added to the list of people who want to participate in random fika. ")
+
+
+@dp.callback_query(F.text == "fika_no")  # type: ignore
+async def handle_random_fika_no(callback_query: types.CallbackQuery) -> None:
+    await callback_query.answer(
+        "You have been removed from the list of people who want to participate in random fika. "
+    )
+    user = await User.get(id=callback_query.from_user.id).prefetch_related("fikas")
+    if not user.fikas:
+        await callback_query.answer("You already not participating in random fika")
+        return
+    await Fika.filter(user=user).delete()
+    await callback_query.answer(
+        "You have been removed from the list of people who want to participate in random fika. "
+    )
+
 
 @dp.message(Command("cancel"))  # type: ignore
 @dp.message(F.text.casefold() == "cancel")
@@ -243,6 +306,7 @@ async def cancel_handler(message: types.Message, state: FSMContext) -> None:
         "Cancelled.",
         reply_markup=DEFAULT_KEYBOAD,
     )
+
 
 # Admin commands
 @dp.message(Command("admin"))  # type: ignore

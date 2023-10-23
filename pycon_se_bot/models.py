@@ -9,6 +9,17 @@ class User(Model):  # type: ignore
     is_admin = fields.BooleanField(default=False)
 
 
+class Fika(Model):  # type: ignore
+    id = fields.IntField(pk=True)
+    user = fields.ForeignKeyField("models.User", related_name="fikas", on_delete=fields.CASCADE)
+
+
+class Matches(Model):  # type: ignore
+    id = fields.IntField(pk=True)
+    user1 = fields.ForeignKeyField("models.User", related_name="matches1", on_delete=fields.CASCADE)
+    user2 = fields.ForeignKeyField("models.User", related_name="matches2", on_delete=fields.CASCADE)
+
+
 class Room(Model):  # type: ignore
     id = fields.IntField(pk=True)
     name = fields.CharField(max_length=255)
