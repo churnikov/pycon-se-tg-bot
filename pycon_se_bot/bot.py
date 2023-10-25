@@ -43,6 +43,10 @@ class FikaCallback(CallbackData, prefix="fika"):
     is_participating: bool
 
 
+class RandomFika(StatesGroup):
+    participating = State()
+
+
 @dp.message(CommandStart())  # type: ignore
 async def start(message: types.Message) -> None:
     # Sending a message with the keyboard
@@ -78,7 +82,8 @@ async def handle_schedule_lookup(message: types.Message, state: FSMContext) -> N
 
 @dp.message(Command("now"))  # type: ignore
 async def handle_schedule_now(message: types.Message) -> None:
-    current_time = datetime(2023, 11, 9, 10, 10)
+    # current_time = datetime(2023, 11, 9, 10, 10)
+    current_time = datetime.now()
     current_time = current_time.replace(second=0, microsecond=0)
     next_detltha = current_time + timedelta(minutes=61)
     previous_thirty_minutes = current_time - timedelta(minutes=30)
@@ -265,20 +270,33 @@ async def handle_random_fika(message: types.Message, state: FSMContext) -> None:
     )
 
 
-@dp.callback_query(FikaCallback.filter(F.is_participating == True))  # type: ignore
-async def handle_random_fika_yes(callback_query: types.CallbackQuery) -> None:
+@dp.callback_query(FikaCallback.filter(F.is_participating == True))  # type: ignore; noqa: F712
+async def handle_random_fika_yes(callback_query: types.CallbackQuery, state: FSMContext) -> None:
     # TODO: May be times should be configurable
-    await callback_query.answer(
-        "You have been added to the list of people who want to participate in random fika. "
-        "At 11:00 we will send you a message with the name of the person you will have fika with"
-    )
     user = await User.get(id=callback_query.from_user.id).prefetch_related("fikas")
     if user.fikas:
         await callback_query.answer("You have already signed up for random fika")
         return
-    await Fika.create(user=user)
+    await state.set_state(RandomFika.participating)
+    await dp.bot.send_message(
+        user.id,
+        "Please send us info on how you want to be contacted (email, telegram, linkedin, etc.) "
+        "and we will send you a message at 11:00 with the name of the person you will have fika with",
+    )
+
+
+@dp.message(RandomFika.participating)  # type: ignore; noqa: F712
+async def handle_random_fika_participating(message: types.Message, state: FSMContext) -> None:
+
+    user = await User.get(id=message.from_user.id).prefetch_related("fikas")
+
+    await Fika.create(user=user, contact=message.text)
     # TODO this not very usable, change it. Message is at the top right now
-    await callback_query.answer("You have been added to the list of people who want to participate in random fika. ")
+    await dp.bot.send_message(
+        user.id,
+        "You have been added to the list of people who want to participate in random fika. "
+        "At 11:00 we will send you a message with the name of the person you will have fika with",
+    )
 
 
 @dp.callback_query(FikaCallback.filter(F.is_participating == False))  # type: ignore
@@ -291,8 +309,8 @@ async def handle_random_fika_no(callback_query: types.CallbackQuery) -> None:
         await callback_query.answer("You already not participating in random fika")
         return
     await Fika.filter(user=user).delete()
-    await callback_query.answer(
-        "You have been removed from the list of people who want to participate in random fika. "
+    await dp.bot.send_message(
+        user.id, "You have been removed from the list of people who want to participate in random fika. "
     )
 
 

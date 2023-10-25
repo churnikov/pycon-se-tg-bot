@@ -24,6 +24,7 @@ async def main() -> None:
     await Tortoise.generate_schemas()
 
     bot = Bot(BOT_TOKEN, parse_mode=ParseMode.HTML)
+    dp.bot = bot
     # And the run events dispatching
     await dp.start_polling(bot)
 

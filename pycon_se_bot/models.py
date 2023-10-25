@@ -12,6 +12,7 @@ class User(Model):  # type: ignore
 class Fika(Model):  # type: ignore
     id = fields.IntField(pk=True)
     user = fields.ForeignKeyField("models.User", related_name="fikas", on_delete=fields.CASCADE)
+    contact = fields.CharField(max_length=255, null=True)
 
 
 class Matches(Model):  # type: ignore

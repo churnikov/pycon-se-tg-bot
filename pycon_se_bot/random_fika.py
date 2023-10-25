@@ -1,15 +1,13 @@
-import random
 import asyncio
+import random
 from typing import List
-
-from pycon_se_bot.models import Matches, User
-from pycon_se_bot.settings import dp
 
 from aiogram import Bot
 from aiogram.enums import ParseMode
 from tortoise import Tortoise
 
 from pycon_se_bot.bot import *  # noqa F401, F403
+from pycon_se_bot.models import Matches, User
 from pycon_se_bot.settings import (
     BOT_TOKEN,
     POSTGRES_DB,
@@ -50,6 +48,10 @@ async def send_notification_to_user(user: User, match: User) -> None:
         f"Hi {user.name}! You have been matched with {match.name} for a random fika! "
         f"Please contact each other to set up a time and place to meet. "
         f"Once you have met, please mark yourself as done with the command `/fika done`.",
+    )
+    await dp.bot.send_message(
+        user.id,
+        f"{user.name}'s contact info: {user.contact}",
     )
 
 

@@ -21,7 +21,6 @@ redis = "^5.0.1"
 
 [tool.poetry.group.dev.dependencies]
 tortoise-orm-stubs = "^1.0.1"
-types-redis = "^4.6.0.7"
 
 [build-system]
 requires = ["poetry-core"]
