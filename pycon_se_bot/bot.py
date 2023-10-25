@@ -39,6 +39,10 @@ class SchleduleCallback(CallbackData, prefix="talk"):
     liked: bool = False
 
 
+class FikaCallback(CallbackData, prefix="fika"):
+    is_participating: bool
+
+
 @dp.message(CommandStart())  # type: ignore
 async def start(message: types.Message) -> None:
     # Sending a message with the keyboard
@@ -46,7 +50,8 @@ async def start(message: types.Message) -> None:
         "Hello! By using this bot you agree to our code of conduct " "https://www.europython-society.org/coc/"
     )
     await message.answer("Hello! I'm your bot, choose an option:", reply_markup=DEFAULT_KEYBOAD)
-    await User.get_or_create(id=message.from_user.id, name=message.from_user.full_name)
+    user = await User.get_or_create(id=message.from_user.id, name=message.from_user.full_name)
+    print("Created user", user)
 
 
 # Handler for messages (it will handle messages containing "Button 1", "Button 2", "Button 3")
@@ -252,15 +257,15 @@ async def handle_random_fika(message: types.Message, state: FSMContext) -> None:
         reply_markup=InlineKeyboardMarkup(
             inline_keyboard=[
                 [
-                    InlineKeyboardButton(text="Yes", callback_data="fika_yes"),
-                    InlineKeyboardButton(text="No", callback_data="fika_no"),
+                    InlineKeyboardButton(text="Yes", callback_data=FikaCallback(is_participating=True).pack()),
+                    InlineKeyboardButton(text="No", callback_data=FikaCallback(is_participating=False).pack()),
                 ],
             ]
         ),
     )
 
 
-@dp.callback_query(F.text == "fika_yes")  # type: ignore
+@dp.callback_query(FikaCallback.filter(F.is_participating == True))  # type: ignore
 async def handle_random_fika_yes(callback_query: types.CallbackQuery) -> None:
     # TODO: May be times should be configurable
     await callback_query.answer(
@@ -272,10 +277,11 @@ async def handle_random_fika_yes(callback_query: types.CallbackQuery) -> None:
         await callback_query.answer("You have already signed up for random fika")
         return
     await Fika.create(user=user)
+    # TODO this not very usable, change it. Message is at the top right now
     await callback_query.answer("You have been added to the list of people who want to participate in random fika. ")
 
 
-@dp.callback_query(F.text == "fika_no")  # type: ignore
+@dp.callback_query(FikaCallback.filter(F.is_participating == False))  # type: ignore
 async def handle_random_fika_no(callback_query: types.CallbackQuery) -> None:
     await callback_query.answer(
         "You have been removed from the list of people who want to participate in random fika. "
