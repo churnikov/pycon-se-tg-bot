@@ -247,7 +247,16 @@ async def handle_liked_talks(message: types.Message) -> None:
         await message.answer(f"{time_slot}")
         for room_name, talk in rooms.items():
             if talk:
-                await message.answer(f"{room_name}: {talk.name}")
+                await message.answer(f"{room_name}: {talk.name}", reply_markup=InlineKeyboardMarkup(
+                    inline_keyboard=[
+                        [
+                            InlineKeyboardButton(
+                                text="Remove", callback_data=SchleduleCallback(talk_id=talk.id, liked=False).pack()
+                            ),
+                        ],
+                    ]
+                    )
+                )
 
 
 @dp.message(F.text == "Random fika (coffee)")  # type: ignore

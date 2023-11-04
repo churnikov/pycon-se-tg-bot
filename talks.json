@@ -85,14 +85,6 @@
             "proposal_type": "Talk"
         },
         {
-            "name": null,
-            "time_start": "11:30",
-            "time_end": "12:00",
-            "room": "Second Room",
-            "link": null,
-            "day": 1
-        },
-        {
             "name": "Lunch",
             "time_start": "12:00",
             "time_end": "13:00",
@@ -225,32 +217,16 @@
         },
         {
             "name": "Keynote: Carol Willing",
-            "time_start": "9:00",
+            "time_start": "09:00",
             "time_end": "10:00",
             "room": "Main Room",
             "link": "https://pycon.se/#carol",
             "day": 2
         },
         {
-            "name": null,
-            "time_start": "9:00",
-            "time_end": "10:00",
-            "room": "Second Room",
-            "link": null,
-            "day": 2
-        },
-        {
             "name": "coffee break",
             "time_start": "10:00",
             "time_end": "10:30",
-            "room": "Main Room",
-            "link": null,
-            "day": 2
-        },
-        {
-            "name": null,
-            "time_start": "10:30",
-            "time_end": "11:00",
             "room": "Main Room",
             "link": null,
             "day": 2
@@ -295,14 +271,6 @@
             "proposal_type": "Talk"
         },
         {
-            "name": null,
-            "time_start": "11:30",
-            "time_end": "12:00",
-            "room": "Second Room",
-            "link": null,
-            "day": 2
-        },
-        {
             "name": "Lunch",
             "time_start": "12:00",
             "time_end": "13:00",
@@ -316,14 +284,6 @@
             "time_end": "14:00",
             "room": "Main Room",
             "link": "https://pycon.se/#deb",
-            "day": 2
-        },
-        {
-            "name": null,
-            "time_start": "13:00",
-            "time_end": "14:00",
-            "room": "Second Room",
-            "link": null,
             "day": 2
         },
         {
@@ -419,17 +379,9 @@
             "day": 2
         },
         {
-            "name": null,
-            "time_start": "16:30",
-            "time_end": "17:00",
-            "room": "Second Room",
-            "link": null,
-            "day": 2
-        },
-        {
             "name": "Closing speech of PyCon Sweden 2023",
             "time_start": "17:00",
-            "time_end": "",
+            "time_end": "17:30",
             "room": "Main Room",
             "link": null,
             "day": 2
