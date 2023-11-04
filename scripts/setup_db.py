@@ -43,6 +43,7 @@ async def setup() -> None:
                 link=talk_data["link"],
                 room=room,
                 day=talk_data["day"],
+                speaker=talk_data.get("speaker"),
             )
 
 

@@ -15,6 +15,148 @@ from aiogram.types.reply_keyboard_markup import ReplyKeyboardMarkup
 from pycon_se_bot.models import Fika, LikedTalk, Talk, User
 from pycon_se_bot.settings import ADMIN_PASSWORD, dp
 
+# Utility functions
+
+
+async def get_talks(day: int) -> list[Talk]:
+    """
+    Get all talks for a given day
+
+    :param day: Day number
+
+    :return: List of talks
+    """
+    talks = await (Talk.filter(day=day).all().prefetch_related("room").order_by("time_start"))
+    print(talks[0].time_start)
+    return talks
+
+
+def split_talks_by_room(talks: list[Talk]) -> dict[str, dict[str, Talk]]:
+    """
+    Split talks by room and time
+
+    :param talks: List of talks
+
+    :return: Dict of talks
+    """
+    table_data = {}
+    for talk in talks:
+        time_key = f"{talk.time_start.strftime('%H:%M')} - {talk.time_end.strftime('%H:%M')}"
+        if time_key not in table_data:
+            table_data[time_key] = {"Main Room": None, "Second Room": None}
+        room_name = talk.room.name if talk.room else None
+        table_data[time_key][room_name] = talk
+    return table_data
+
+
+async def generate_keyboard_for_day(day: int) -> ReplyKeyboardMarkup:
+    """
+    Generate keyboard for a given day
+
+    :param day: Day number
+
+    :return: Telegram Keyboard
+    """
+    talks = await get_talks(day)
+    talks = split_talks_by_room(talks)
+    schedule_kbrd = [
+        [
+            KeyboardButton(text="Main Room"),
+            KeyboardButton(text="Second Room"),
+        ],
+    ]
+    for rooms in talks.values():
+        row = []
+        for room_name, talk in rooms.items():
+            if talk:
+                row.append(
+                    KeyboardButton(
+                        text=f"{talk.name} ({talk.time_start.strftime('%H:%M')} - {talk.time_end.strftime('%H:%M')})"
+                    )
+                )
+        schedule_kbrd.append(row)
+    keyboard = ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="< Schedule")],
+            *schedule_kbrd,
+        ],
+        is_persistent=True,
+    )
+    return keyboard
+
+
+async def generate_message_and_inline_keyboard_for_talk(
+    talk: Talk, user: User
+) -> tuple[str, InlineKeyboardMarkup | None]:
+    """
+    Generate message and inline keyboard for a given talk
+
+    :param talk: Talk
+
+    :return: Tuple of message and inline keyboard
+    """
+    message = f"{talk.name} ({talk.time_start.strftime('%H:%M')} - {talk.time_end.strftime('%H:%M')})"
+    if talk.link:
+        message += f"\nLink: {talk.link}"
+    if talk.room:
+        message += f"\nRoom: {talk.room.name}"
+    if talk.speaker:
+        message += f"\nSpeaker: {talk.speaker}"
+
+    if talk.link:
+        liked_talk_relation = await LikedTalk.filter(talk=talk, user=user).first()
+        if liked_talk_relation:
+            like_button = InlineKeyboardButton(
+                text="Remove like", callback_data=SchleduleCallback(talk_id=talk.id, liked=False).pack()
+            )
+        else:
+            like_button = InlineKeyboardButton(
+                text="Like", callback_data=SchleduleCallback(talk_id=talk.id, liked=True).pack()
+            )
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[[like_button]])
+    else:
+        keyboard = None
+
+    return message, keyboard
+
+
+async def generate_messages_for_day(day: int, user: User) -> list[tuple[str, InlineKeyboardMarkup | None]]:
+    """
+    Generate messages for a given day
+
+    :param day: Day number
+
+    :return: List of messages
+    """
+    talks = await get_talks(day)
+    talks = split_talks_by_room(talks)
+    messages = []
+    for time_slot, rooms in talks.items():
+        for room_name, talk in rooms.items():
+            if talk:
+                text, keyboard = await generate_message_and_inline_keyboard_for_talk(talk, user)
+                messages.append((text, keyboard))
+    return messages
+
+
+async def answer_message_with_talks(
+    message: types.Message, replies: list[tuple[str, InlineKeyboardMarkup | None]], **kwargs
+) -> None:
+    """
+    Answer message with a list of talks
+
+    :param message: Message to answer
+    :param replies: List of replies
+    """
+    for text, keyboard in replies:
+        if keyboard is None:
+            await message.answer(text, **kwargs)
+        else:
+            await message.answer(text, reply_markup=keyboard, **kwargs)
+
+
+# Base functionality
+
 DEFAULT_KEYBOAD = ReplyKeyboardMarkup(
     keyboard=[
         [
@@ -24,27 +166,6 @@ DEFAULT_KEYBOAD = ReplyKeyboardMarkup(
     ],
     is_persistent=True,
 )
-
-
-# States
-class Form(StatesGroup):
-    schedule = State()
-    schedule_day_1 = State()
-    schedule_day_2 = State()
-    fandom_fika = State()
-
-
-class SchleduleCallback(CallbackData, prefix="talk"):
-    talk_id: int
-    liked: bool = False
-
-
-class FikaCallback(CallbackData, prefix="fika"):
-    is_participating: bool
-
-
-class RandomFika(StatesGroup):
-    participating = State()
 
 
 @dp.message(CommandStart())  # type: ignore
@@ -58,7 +179,20 @@ async def start(message: types.Message) -> None:
     print("Created user", user)
 
 
-# Handler for messages (it will handle messages containing "Button 1", "Button 2", "Button 3")
+# Schedule handlers
+
+# States
+class Form(StatesGroup):
+    schedule = State()
+    random_fika = State()
+
+
+class SchleduleCallback(CallbackData, prefix="talk"):
+    talk_id: int
+    liked: bool = False
+
+
+# Handlers
 
 
 @dp.message(F.text == "Schedule")  # type: ignore
@@ -96,59 +230,19 @@ async def handle_schedule_now(message: types.Message) -> None:
     )
     print(talks)
     talks = split_talks_by_room(talks)
+    user = await User.get(id=message.from_user.id)
     for time_slot, rooms in talks.items():
         await message.answer(f"{time_slot}")
         for room_name, talk in rooms.items():
             if talk:
-                await message.answer(f"{room_name}: {talk.name}")
+                await answer_message_with_talks(
+                    message,
+                    [await generate_message_and_inline_keyboard_for_talk(talk, user)],
+                    disable_web_page_preview=True,
+                    disable_notification=True,
+                )
     else:
         await message.answer("Get some rest, there is nothing happening right now")
-
-
-async def get_talks(day: int) -> list[Talk]:
-    talks = await (Talk.filter(day=day).all().prefetch_related("room").order_by("time_start"))
-    print(talks[0].time_start)
-    return talks
-
-
-def split_talks_by_room(talks: list[Talk]) -> dict[str, dict[str, Talk]]:
-    table_data = {}
-    for talk in talks:
-        time_key = f"{talk.time_start.strftime('%H:%M')} - {talk.time_end.strftime('%H:%M')}"
-        if time_key not in table_data:
-            table_data[time_key] = {"Main Room": None, "Second Room": None}
-        room_name = talk.room.name if talk.room else None
-        table_data[time_key][room_name] = talk
-    return table_data
-
-
-async def generate_keyboard_for_day(day: int) -> ReplyKeyboardMarkup:
-    talks = await get_talks(day)
-    talks = split_talks_by_room(talks)
-    schedule_kbrd = [
-        [
-            KeyboardButton(text="Main Room"),
-            KeyboardButton(text="Second Room"),
-        ],
-    ]
-    for rooms in talks.values():
-        row = []
-        for room_name, talk in rooms.items():
-            if talk:
-                row.append(
-                    KeyboardButton(
-                        text=f"{talk.name} ({talk.time_start.strftime('%H:%M')} - {talk.time_end.strftime('%H:%M')})"
-                    )
-                )
-        schedule_kbrd.append(row)
-    keyboard = ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="< Schedule")],
-            *schedule_kbrd,
-        ],
-        is_persistent=True,
-    )
-    return keyboard
 
 
 @dp.message(F.text.regexp(r"Day \d+"))  # type: ignore
@@ -159,17 +253,18 @@ async def handle_schedule_for_day(message: types.Message, state: FSMContext) -> 
         return
 
     day = day[1]
+    user = await User.get(id=message.from_user.id)
     if day == "1":
-        await state.set_state(Form.schedule_day_1)
-        keyboard = await generate_keyboard_for_day(1)
+        replies = await generate_messages_for_day(1, user)
+        await answer_message_with_talks(message, replies, disable_web_page_preview=True, disable_notification=True)
     elif day == "2":
-        await state.set_state(Form.schedule_day_2)
-        keyboard = await generate_keyboard_for_day(2)
+        replies = await generate_messages_for_day(2, user)
+        await answer_message_with_talks(message, replies, disable_web_page_preview=True, disable_notification=True)
     else:
-        return
         await message.answer("Please choose a day")
+        return
 
-    await message.answer(f"Here's the schedule for day {day}", reply_markup=keyboard)
+    await message.answer(f"Here's the schedule for day {day}")
 
 
 @dp.message(F.text == "Home")  # type: ignore
@@ -183,41 +278,6 @@ async def handle_schedule_back(message: types.Message, state: FSMContext) -> Non
     await message.answer("Back to home", reply_markup=DEFAULT_KEYBOAD)
 
 
-# This handle reacts only on being in states: Form.schedule_day_1 or Form.schedule_day_2
-@dp.message(Form.schedule_day_1, F.text.regexp(r".* \(\d\d:\d\d - \d\d:\d\d\)"))  # type: ignore
-@dp.message(Form.schedule_day_1, F.text.regexp(r".* \(\d\d:\d\d - \d\d:\d\d\)"))  # type: ignore
-async def handle_schedule_talk(message: types.Message, state: FSMContext) -> None:
-    logging.info("Handling talk %r", message.text)
-    talk = message.text.split(" (")[0]
-    talk = await Talk.filter(name=talk).prefetch_related("room").first()
-    if talk is None:
-        await message.answer("Talk not found")
-        return
-    else:
-        await message.answer(f"{talk.name} ({talk.time_start.strftime('%H:%M')} - {talk.time_end.strftime('%H:%M')})")
-        if talk.link:
-            await message.answer(f"Link: {talk.link}")
-        if talk.room:
-            await message.answer(f"Room: {talk.room.name}")
-        if talk.speaker:
-            await message.answer(f"Speaker: {talk.speaker}")
-        await message.answer(
-            "Would you like to save this talk?",
-            reply_markup=InlineKeyboardMarkup(
-                inline_keyboard=[
-                    [
-                        InlineKeyboardButton(
-                            text="Yes", callback_data=SchleduleCallback(talk_id=talk.id, liked=True).pack()
-                        ),
-                        InlineKeyboardButton(
-                            text="No", callback_data=SchleduleCallback(talk_id=talk.id, liked=False).pack()
-                        ),
-                    ],
-                ]
-            ),
-        )
-
-
 @dp.callback_query(SchleduleCallback.filter())  # type: ignore
 async def handle_schedule_talk_callback(callback_query: types.CallbackQuery, callback_data: SchleduleCallback) -> None:
     talk_id = callback_data.talk_id
@@ -227,9 +287,31 @@ async def handle_schedule_talk_callback(callback_query: types.CallbackQuery, cal
     if liked:
         await LikedTalk.create(talk=talk, user=user)
         await callback_query.answer("Talk saved")
+        await callback_query.message.edit_reply_markup(
+            reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [
+                        InlineKeyboardButton(
+                            text="Remove like", callback_data=SchleduleCallback(talk_id=talk.id, liked=False).pack()
+                        ),
+                    ],
+                ]
+            )
+        )
     else:
         await LikedTalk.filter(talk=talk, user=user).delete()
         await callback_query.answer("Talk removed")
+        await callback_query.message.edit_reply_markup(
+            reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [
+                        InlineKeyboardButton(
+                            text="Like", callback_data=SchleduleCallback(talk_id=talk.id, liked=True).pack()
+                        ),
+                    ],
+                ]
+            )
+        )
 
 
 @dp.message(Command("liked"))  # type: ignore
@@ -244,24 +326,31 @@ async def handle_liked_talks(message: types.Message) -> None:
         return
     talks = split_talks_by_room(talks)
     for time_slot, rooms in talks.items():
-        await message.answer(f"{time_slot}")
         for room_name, talk in rooms.items():
             if talk:
-                await message.answer(f"{room_name}: {talk.name}", reply_markup=InlineKeyboardMarkup(
-                    inline_keyboard=[
-                        [
-                            InlineKeyboardButton(
-                                text="Remove", callback_data=SchleduleCallback(talk_id=talk.id, liked=False).pack()
-                            ),
-                        ],
-                    ]
-                    )
+                await answer_message_with_talks(
+                    message,
+                    [await generate_message_and_inline_keyboard_for_talk(talk, user)],
+                    disable_web_page_preview=True,
+                    disable_notification=True,
                 )
 
 
+# RandomFika handlers
+
+# States
+class FikaCallback(CallbackData, prefix="fika"):
+    is_participating: bool
+
+
+class RandomFika(StatesGroup):
+    participating = State()
+
+
+# Handlers
 @dp.message(F.text == "Random fika (coffee)")  # type: ignore
 async def handle_random_fika(message: types.Message, state: FSMContext) -> None:
-    await state.set_state(Form.fandom_fika)
+    await state.set_state(Form.random_fika)
     await message.answer("Do you want to participate in random fika?")
     await message.answer("You will be matched with a random person from the conference")
     await message.answer(
@@ -279,7 +368,7 @@ async def handle_random_fika(message: types.Message, state: FSMContext) -> None:
     )
 
 
-@dp.callback_query(FikaCallback.filter(F.is_participating == True))  # type: ignore; noqa: F712
+@dp.callback_query(FikaCallback.filter(F.is_participating == True))  # type: ignore; noqa: E712
 async def handle_random_fika_yes(callback_query: types.CallbackQuery, state: FSMContext) -> None:
     # TODO: May be times should be configurable
     user = await User.get(id=callback_query.from_user.id).prefetch_related("fikas")
@@ -308,7 +397,7 @@ async def handle_random_fika_participating(message: types.Message, state: FSMCon
     )
 
 
-@dp.callback_query(FikaCallback.filter(F.is_participating == False))  # type: ignore
+@dp.callback_query(FikaCallback.filter(F.is_participating == False))  # type: ignore, noqa: E712
 async def handle_random_fika_no(callback_query: types.CallbackQuery) -> None:
     await callback_query.answer(
         "You have been removed from the list of people who want to participate in random fika. "
