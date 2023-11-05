@@ -80,7 +80,7 @@ async def generate_keyboard_for_day(day: int) -> ReplyKeyboardMarkup:
             [KeyboardButton(text="< Schedule")],
             *schedule_kbrd,
         ],
-        is_persistent=True,
+        is_persistent=False,
     )
     return keyboard
 
@@ -164,7 +164,7 @@ DEFAULT_KEYBOAD = ReplyKeyboardMarkup(
         ],
         [KeyboardButton(text="Random fika (coffee)")],
     ],
-    is_persistent=True,
+    is_persistent=False,
 )
 
 
@@ -209,7 +209,7 @@ async def handle_schedule_lookup(message: types.Message, state: FSMContext) -> N
                 KeyboardButton(text="Home"),
             ],
         ],
-        is_persistent=True,
+        is_persistent=False,
     )
     await message.answer("Which day's schedule would you like to see?", reply_markup=keyboard)
 

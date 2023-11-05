@@ -2,8 +2,8 @@ version: '3.7'
 
 services:
   bot:
-    # image: ghcr.io/churnikov/pycon-se-tg-bot:latest
-    image: pycon_se_bot
+    image: ghcr.io/churnikov/pycon-se-tg-bot:latest
+    # image: pycon_se_bot
     command: python -u pycon_se_bot/main.py
     environment:
       - POSTGRES_HOST=db
